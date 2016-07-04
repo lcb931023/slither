@@ -24,6 +24,7 @@
   <script src="js/libs/particulate.js" charset="utf-8"></script>
   <script src="js/libs/TrackballControls.js" charset="utf-8"></script>
   <script src="js/libs/DemoScene.js" charset="utf-8"></script>
+  <script src="js/libs/perlin.js" charset="utf-8"></script>
   <script type="text/javascript">
   // Tentacle with wavey motion?
   (function () {
@@ -31,16 +32,24 @@
     var mouseY = 0;
     var pinX = mouseX;
     var pinY = mouseY;
+    var pinZ = 0;
     var start;
+    var noiseVector = {
+      x:0,
+      y:0,
+      z:0
+    }
     
     var PTCL = Particulate;
     var PARTICLES = 40;
     var ITERATIONS = 2;
     var LINK_DISTANCE = 2;
     var GRAVITY = -0.2;
+    var TURBULENCE = 1;
     
     var system = PTCL.ParticleSystem.create(PARTICLES, ITERATIONS);
     var gravityForce = PTCL.DirectionalForce.create();
+    // var turbulenceForce = PTCL.DirectionalForce.create();
     
     var linkIndices = [];
     
@@ -62,7 +71,11 @@
     
     // Constraint: Distance b/c each node of the tentacle
     system.addConstraint(PTCL.DistanceConstraint.create(LINK_DISTANCE, linkIndices));
-    
+    // Constraint: keep all particles above a plane
+    var origin = [0.0, -50.0, 0.0];
+    var normal = [0.0, 1.0, 0.0];
+    var plane = PTCL.BoundingPlaneConstraint.create(origin, normal);
+    system.addConstraint(plane);
     // Set the point that tentacles come from
     // TODO Moving point? Follow Mouse?
     var pin = PTCL.PointConstraint.create([0, 0, 0], 0);
@@ -71,6 +84,13 @@
     system.addPinConstraint(pin);
     
     system.addForce(gravityForce);
+    // system.addForce(turbulenceForce);
+    
+    
+    
+    
+    
+    
     
     
     /** VISUALIZATION **/
@@ -89,7 +109,7 @@
     dots.addAttribute('position', vertices);
     
     var visParticles = new THREE.Points(dots,
-      new THREE.PointsMaterial({size: 2}));
+      new THREE.PointsMaterial({size: 4}));
     demo.scene.add(visParticles);
     
     // Conections
@@ -101,15 +121,35 @@
       new THREE.LineBasicMaterial({color: 0xffffff, linewidth: 1}));
     demo.scene.add(visConnectors);
     
+    // A box for visual reference
+    var box = new THREE.Mesh(
+      new THREE.BoxGeometry(100, 100, 100, 1, 1, 1),
+      new THREE.MeshBasicMaterial({
+        wireframe : true
+      })
+    );
+    demo.scene.add(box);
+    
+    noise.seed(Math.random());
+    
     // Make gravity always point down no matter the scene rotation
     // var up = demo.controls.object.up;
     var up = new THREE.Vector3(0, 1, 0);
     demo.animate(function () {
+      var time = performance.now() * 0.001;
       gravityForce.set(up.x * GRAVITY, up.y * GRAVITY, up.z * GRAVITY);
-      var sin = Math.sin(performance.now() * 0.005);
-      var cos = Math.cos(performance.now() * 0.005);
-      // pin.setPosition(pinX * 50, pinY * 50, 0);
-      pin.setPosition(sin * 50, 0, cos * 50);
+      var noiseX = noise.simplex2(1, time);
+      var noiseY = noise.simplex2(2, time);
+      var noiseZ = noise.simplex2(3, time);
+      noiseVector.x += noiseX;
+      noiseVector.y += noiseY;
+      noiseVector.z += noiseZ;
+      // turbulenceForce.set(noiseX * TURBULENCE, noiseY * TURBULENCE, noiseZ * TURBULENCE);
+      var sin = Math.sin(time * 0.005);
+      var cos = Math.cos(time * 0.005);
+      // pin.setPosition(pinX, pinY, pinZ);
+      // pin.setPosition(sin * 50, 0, cos * 50);
+      pin.setPosition(noiseVector.x, noiseVector.y, noiseVector.z);
       system.tick(1);
       dots.attributes.position.needsUpdate = true;
       demo.update();
@@ -125,7 +165,24 @@
       pinY = - (mouseY - window.innerWidth/2);
       pinX /= 2;
       pinY /= 2;
+      
+      var vector = new THREE.Vector3();
+      vector.set(
+          ( e.clientX / window.innerWidth ) * 2 - 1,
+          - ( e.clientY / window.innerHeight ) * 2 + 1,
+          0.5 );
+      vector.unproject( demo.camera );
+      var dir = vector.sub( demo.camera.position ).normalize();
+      var distance = - demo.camera.position.z / dir.z;
+      var pos = demo.camera.position.clone().add( dir.multiplyScalar( distance ) );
+      pinX = pos.x;
+      pinY = pos.y;
+      pinZ = pos.z;
     }
+    
+    
+    
+
   }());
   </script>
 </body>
