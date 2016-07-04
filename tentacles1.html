@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tentacle</title>
+  <style>
+    body {
+      margin: 0;
+    }
+    #container {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  
+  <script src="js/libs/three.js" charset="utf-8"></script>
+  <script src="js/libs/particulate.js" charset="utf-8"></script>
+  <script src="js/libs/TrackballControls.js" charset="utf-8"></script>
+  <script src="js/libs/DemoScene.js" charset="utf-8"></script>
+  <script type="text/javascript">
+  // Tentacle with wavey motion?
+  (function () {
+    var mouseX = 0;
+    var mouseY = 0;
+    var pinX = mouseX;
+    var pinY = mouseY;
+    var start;
+    
+    var PTCL = Particulate;
+    var PARTICLES = 40;
+    var ITERATIONS = 2;
+    var LINK_DISTANCE = 2;
+    var GRAVITY = -0.2;
+    
+    var system = PTCL.ParticleSystem.create(PARTICLES, ITERATIONS);
+    var gravityForce = PTCL.DirectionalForce.create();
+    
+    var linkIndices = [];
+    
+    system.each(function (i) {
+      var prev = i - 1;
+      var curr = i;
+      // Set up init position
+      if (curr > 0 && curr < PARTICLES - 1) {
+        system.setPosition(i,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20);
+      }
+      // Register indices for linking
+      if (curr > 0) {
+        linkIndices.push(prev, curr);
+      }
+    });
+    
+    // Constraint: Distance b/c each node of the tentacle
+    system.addConstraint(PTCL.DistanceConstraint.create(LINK_DISTANCE, linkIndices));
+    
+    // Set the point that tentacles come from
+    // TODO Moving point? Follow Mouse?
+    var pin = PTCL.PointConstraint.create([0, 0, 0], 0);
+    
+    system.setWeight(0, 0);
+    system.addPinConstraint(pin);
+    
+    system.addForce(gravityForce);
+    
+    
+    /** VISUALIZATION **/
+    var demo = PTCL.DemoScene.create();
+    demo.camera.position.set(0, 200, 500);
+    
+    var vertices = new THREE.BufferAttribute();
+    vertices.array = system.positions;
+    vertices.itemSize = 3;
+    
+    var indices = new THREE.BufferAttribute();
+    indices.array = new Uint16Array(linkIndices);
+    
+    // Particles
+    var dots = new THREE.BufferGeometry();
+    dots.addAttribute('position', vertices);
+    
+    var visParticles = new THREE.Points(dots,
+      new THREE.PointsMaterial({size: 2}));
+    demo.scene.add(visParticles);
+    
+    // Conections
+    var lines = new THREE.BufferGeometry();
+    lines.addAttribute('position', vertices);
+    // lines.setIndex(indices);
+    // lines.addAttribute('index', indices);
+    var visConnectors = new THREE.Line(lines,
+      new THREE.LineBasicMaterial({color: 0xffffff, linewidth: 1}));
+    demo.scene.add(visConnectors);
+    
+    // Make gravity always point down no matter the scene rotation
+    // var up = demo.controls.object.up;
+    var up = new THREE.Vector3(0, 1, 0);
+    demo.animate(function () {
+      gravityForce.set(up.x * GRAVITY, up.y * GRAVITY, up.z * GRAVITY);
+      var sin = Math.sin(performance.now() * 0.005);
+      var cos = Math.cos(performance.now() * 0.005);
+      // pin.setPosition(pinX * 50, pinY * 50, 0);
+      pin.setPosition(sin * 50, 0, cos * 50);
+      system.tick(1);
+      dots.attributes.position.needsUpdate = true;
+      demo.update();
+      demo.render();
+    });
+    
+    
+    // Keep track of mouse
+    document.onmousemove = function(e) {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      pinX = mouseX - window.innerWidth/2;
+      pinY = - (mouseY - window.innerWidth/2);
+      pinX /= 2;
+      pinY /= 2;
+    }
+  }());
+  </script>
+</body>
+</html>
